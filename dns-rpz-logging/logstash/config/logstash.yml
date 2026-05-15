@@ -1,0 +1,17 @@
+node.name: logstash-rpz
+
+path.data: /usr/share/logstash/data
+
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+pipeline.ordered: auto
+
+pipeline.buffer.type: heap
+
+api.http.host: "0.0.0.0"
+api.http.port: 9600
+
+log.level: info
+
+xpack.monitoring.enabled: false

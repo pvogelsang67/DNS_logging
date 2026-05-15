@@ -1,0 +1,18 @@
+services:
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.3.1
+    container_name: logstash
+    ports:
+      - "514:514/udp"
+      - "514:514/tcp"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logstash/ruby:/usr/share/logstash/ruby
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+    env_file:
+      - .env
+
+
+      
+

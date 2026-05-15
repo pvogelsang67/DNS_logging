@@ -1,0 +1,16 @@
+
+services:
+  dnscollector:
+    container_name: dnscollector
+    image: dmachard/dnscollector:${DNSCOLLECTOR_VERSION:-latest}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config.yml:/etc/dnscollector/config.yml
+      - ${DNSCOLLECTOR_DATA}/:/var/dnscollector/
+    env_file:
+      - .env
+    ports:
+      - "6000:6000/tcp"
+      - "8080:8080/tcp"
+      - "9165:9165/tcp"
+    restart: always
