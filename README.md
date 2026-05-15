@@ -1,16 +1,6 @@
-
-> ### ⚠️ Important Disclaimer
->
-> **This is NOT an officially supported Infoblox solution.**
->
-> This solution was developed as a personal project by an Infoblox Sales Engineer and is provided **as-is**, without warranty of any kind. It is not a product of Infoblox, Inc., and is **not covered by Infoblox Technical Support**.
->
-> - Infoblox Support **will not** troubleshoot, debug, or provide assistance with this script.
-> - Updates, fixes, and enhancements are **best-effort only** and not guaranteed.
-> - Use of this solution is entirely at your own discretion and risk.
-> - Always review the solution and test in a non-production environment before using with a Production Infoblox environment.
-
 # DNS_logging
+
+> **Disclaimer:** This solution is an independent community project and is **not** developed, approved, or supported by Infoblox. It is provided as-is, without warranty of any kind. Infoblox trademarks and product names are referenced solely to describe interoperability. For official Infoblox solutions and support, visit [infoblox.com](https://www.infoblox.com).
 
 Logging DNS queries (DNSTap and RPZ events) to Elasticsearch with Infoblox Threat data.
 
@@ -102,10 +92,19 @@ sudo docker ps -a
 | `dnscollector/config.yml` | DNSCollector settings |
 | `dnscollector/.env` | DNSCollector environment variables |
 
+## Open Source Attributions
+
+| Component | Source | License |
+|-----------|--------|---------|
+| **DNS-collector** (DNSTap receiver) | [github.com/dmachard/DNS-collector](https://github.com/dmachard/DNS-collector) | MIT |
+| **Elasticsearch / Kibana / Logstash** | [elastic.co](https://www.elastic.co) | Elastic License 2.0 |
+
+The `dnscollector` container is powered by **[DNS-collector](https://github.com/dmachard/DNS-collector)** by Denis Machard — a high-speed passive DNS log collector that acts as the missing piece between DNS servers and your data stack. It receives DNSTap streams from DNS servers (Infoblox NIOS, BIND, Unbound, PowerDNS, etc.) on `tcp/6000` and forwards them into the logging pipeline.
+
 ## Uninstall / Reinstall
 
 Simply re-run the install script — it will detect and clean up any existing containers and files before performing a fresh install.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pvogelsang67/DNS_logging/main/install.sh | sudo bash
-```
+'''
