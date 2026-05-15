@@ -1,0 +1,88 @@
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DNS_logging — Unified Docker Compose
+# Merges: elasticsearch/docker-compose.yml
+#          dns-rpz-logging/docker-compose.yml
+#          dnscollector/docker-compose.yml
+#
+# Place this file at the ROOT of the DNS_logging repo.
+# All volume paths are relative to the repo root.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Elasticsearch ────────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.1
+    container_name: es01
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    networks:
+      - esnet
+    restart: unless-stopped
+
+  # ── Kibana ───────────────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.3.1
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_SECURITY_ENABLED=false
+      - SERVER_PUBLICBASEURL=http://localhost:5601
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    networks:
+      - esnet
+    restart: unless-stopped
+
+  # ── Logstash (DNS RPZ Logging) ────────────────────────────────────────────────
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.3.1
+    container_name: logstash
+    ports:
+      - "514:514/udp"
+      - "514:514/tcp"
+    volumes:
+      - ./dns-rpz-logging/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./dns-rpz-logging/logstash/ruby:/usr/share/logstash/ruby
+      - ./dns-rpz-logging/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+    env_file:
+      - ./dns-rpz-logging/.env
+    depends_on:
+      - elasticsearch
+    networks:
+      - esnet
+    restart: unless-stopped
+
+  # ── DNSCollector ──────────────────────────────────────────────────────────────
+  dnscollector:
+    container_name: dnscollector
+    image: dmachard/dnscollector:${DNSCOLLECTOR_VERSION:-latest}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./dnscollector/config.yml:/etc/dnscollector/config.yml
+      - ${DNSCOLLECTOR_DATA:-/var/dnscollector}/:/var/dnscollector/
+    env_file:
+      - ./dnscollector/.env
+    ports:
+      - "6000:6000/tcp"
+      - "8080:8080/tcp"
+      - "9165:9165/tcp"
+    depends_on:
+      - logstash
+    networks:
+      - esnet
+    restart: always
+
+networks:
+  esnet:
+    driver: bridge
+
