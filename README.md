@@ -92,6 +92,40 @@ sudo docker ps -a
 | `dnscollector/config.yml` | DNSCollector settings |
 | `dnscollector/.env` | DNSCollector environment variables |
 
+## Kibana Dashboard
+
+A pre-built Kibana dashboard is included as a saved object export at:
+
+```
+elasticsearch/dnstap_dashbaord.ndjson
+```
+
+The dashboard provides 9 visualisation panels out of the box:
+
+| Panel | Description |
+|-------|-------------|
+| FQDN Queried | Top domains being resolved |
+| Who is Asking | Top client IPs generating DNS queries |
+| DNS Query Type | Breakdown by record type (A, PTR, SOA, IXFR, SRV, etc.) |
+| DNS Response Code | NXDOMAIN, NXRRSET, REFUSED, NOTIMP and others |
+| DNS Server | Query volume per DNS server |
+| RPZ DNS Zone | RPZ zones matching traffic |
+| RPZ Action VIA | Fully-qualified RPZ block entries triggered |
+| TIDE Confidence | Distribution of Infoblox TIDE threat confidence scores |
+| Top 5 NXDOMAIN | Most frequent non-existent domain lookups |
+
+### Loading the Dashboard into Kibana
+
+1. Open Kibana in your browser — `http://<server-ip>:5601`
+2. Navigate to **Stack Management** (bottom-left gear icon) → **Kibana** → **Saved Objects**
+3. Click the **Import** button (top-right)
+4. Click **Select file** and browse to `elasticsearch/dnstap_dashbaord.ndjson` in the cloned repo at `/opt/DNS_logging/elasticsearch/dnstap_dashbaord.ndjson`
+5. Leave the import options at their defaults (check **Automatically overwrite conflicts** if reimporting)
+6. Click **Import** — Kibana will confirm all objects were loaded successfully
+7. Navigate to **Dashboards** in the left sidebar to open the **DNSTap Dashboard**
+
+> **Note:** The dashboard requires data to be flowing through the pipeline (DNSCollector → Logstash → Elasticsearch) before any visualisations will populate. Allow a few minutes after the stack starts for the first records to appear.
+
 ## Open Source Attributions
 
 | Component | Source | License |
