@@ -107,4 +107,4 @@ Simply re-run the install script — it will detect and clean up any existing co
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pvogelsang67/DNS_logging/main/install.sh | sudo bash
-'''
+```
