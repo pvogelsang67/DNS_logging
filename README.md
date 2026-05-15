@@ -1,4 +1,15 @@
 
+> ### ⚠️ Important Disclaimer
+>
+> **This is NOT an officially supported Infoblox solution.**
+>
+> This solution was developed as a personal project by an Infoblox Sales Engineer and is provided **as-is**, without warranty of any kind. It is not a product of Infoblox, Inc., and is **not covered by Infoblox Technical Support**.
+>
+> - Infoblox Support **will not** troubleshoot, debug, or provide assistance with this script.
+> - Updates, fixes, and enhancements are **best-effort only** and not guaranteed.
+> - Use of this solution is entirely at your own discretion and risk.
+> - Always review the solution and test in a non-production environment before using with a Production Infoblox environment.
+
 # DNS_logging
 
 Logging DNS queries (DNSTap and RPZ events) to Elasticsearch with Infoblox Threat data.
