@@ -242,3 +242,48 @@ Simply re-run the install script — it will detect and clean up any existing co
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pvogelsang67/DNS_logging/main/install.sh | sudo bash
 ```
+
+
+
+## Kibana: "Field Cannot Be Used for Filtering" Error
+
+If you see an error like this on a dashboard:
+
+> *The "tide.property.keyword" field can not be used for filtering.*
+
+Don't panic — this is a known Kibana behavior, not a data problem. Here's what it means and how to fix it.
+
+---
+
+## What's Happening
+
+When a new index starts receiving data, Kibana may not yet recognize the field's mapping metadata. Even though the field exists in the index and is visible in your current view, Kibana's cached index pattern doesn't know enough about it yet to allow filtering.
+
+---
+
+## How to Fix It
+
+### Kibana 7.11 and newer
+
+**You shouldn't need to do anything.** As of version 7.11, Kibana automatically refreshes field metadata when new fields appear. If you see this error on a brand-new index, it is typically a one-time occurrence. Try the following:
+
+1. **Reload the browser page** — Kibana may just need a refresh to pick up the latest field state.
+2. If the error persists, follow the manual steps below.
+
+---
+
+### Kibana 7.10 and older (or any version as a one-time fix)
+
+You need to manually refresh the index pattern field list:
+
+1. Go to **Stack Management** (gear icon in the left sidebar)
+2. Select **Index Patterns** (or **Data Views** in newer UI versions)
+3. Find and click the index pattern used by your dashboard
+4. Click the **Refresh field list** button (🔄 circular arrow icon, top-right of the page)
+5. Confirm the action when prompted
+6. **Return to your dashboard** and reload the page
+
+The filter should now work normally.
+
+---
+
