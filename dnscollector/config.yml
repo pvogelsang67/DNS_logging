@@ -56,7 +56,7 @@ pipelines:
 
   - name: elastic
     elasticsearch:
-      server: http://127.0.0.1:9200
+      server: http://elasticsearch:9200
       index:  "dnscollector"
       chan-buffer-size: 0
       bulk-size: 1048576 # 1MB

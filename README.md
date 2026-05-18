@@ -1,17 +1,21 @@
+
 # DNS_logging
 
-> **Disclaimer:** This solution is an independent community project and is **not** developed, approved, or supported by Infoblox. It is provided as-is, without warranty of any kind. Infoblox trademarks and product names are referenced solely to describe interoperability. For official Infoblox solutions and support, visit [infoblox.com](https://www.infoblox.com).
+> **Disclaimer:** This solution is an independent community project and is not developed, approved, or supported by Infoblox.
+> It is provided as-is, without warranty of any kind.
+> Infoblox trademarks and product names are referenced solely to describe interoperability.
+> For official Infoblox solutions and support, visit [infoblox.com](https://infoblox.com).
 
-Logging DNS queries (DNSTap and RPZ events) to Elasticsearch with Infoblox Threat data.
+Logging DNS queries (DNSTap and RPZ events) to Elasticsearch with Infoblox Threat data enriching the RPZ logs.
 
 ## Architecture
 
-| Container | Image | Port(s) | Role |
-|-----------|-------|---------|------|
-| `es01` | Elasticsearch 9.3.1 | 9200 | Log storage and indexing |
-| `kibana` | Kibana 9.3.1 | 5601 | Visualization dashboard |
-| `logstash` | Logstash 9.3.1 | 514/UDP, 514/TCP | DNS RPZ log ingestion pipeline |
-| `dnscollector` | dmachard/dnscollector | 6000/TCP, 8080/TCP, 9165/TCP | DNSTap collection and forwarding |
+| Container    | Image                  | Port(s)                        | Role                            |
+|--------------|------------------------|--------------------------------|---------------------------------|
+| es01         | Elasticsearch 9.3.1    | 9200                           | Log storage and indexing        |
+| kibana       | Kibana 9.3.1           | 5601                           | Visualization dashboard         |
+| logstash     | Logstash 9.3.1         | 514/UDP, 514/TCP               | DNS RPZ log ingestion pipeline  |
+| dnscollector | dmachard/dnscollector  | 6000/TCP, 8080/TCP, 9165/TCP   | DNSTap collection and forwarding|
 
 All four containers share an internal `esnet` bridge network so they can resolve each other by name.
 
@@ -20,6 +24,42 @@ All four containers share an internal `esnet` bridge network so they can resolve
 - Ubuntu Server 20.04, 22.04, or 24.04
 - Internet access (for pulling Docker images and cloning this repo)
 - `sudo` / root privileges on the target host
+- An Infoblox Cloud Services Portal (CSP) API key — required for TIDE threat data enrichment (see below)
+
+## Infoblox CSP API Key
+
+RPZ log enrichment with **Infoblox TIDE threat intelligence** requires a valid API key from the [Infoblox Cloud Services Portal (CSP)](https://csp.infoblox.com).
+
+### What the API key is used for
+
+The Logstash pipeline queries the Infoblox TIDE API to enrich RPZ-matched DNS log entries with threat context — including threat confidence scores, indicator type, and threat class. Without a valid API key, TIDE enrichment will be skipped and the `TIDE Confidence` and related dashboard panels will not populate.
+
+### How to obtain your API key
+
+1. Log in to the [Infoblox CSP](https://csp.infoblox.com) with your Infoblox account credentials.
+2. Navigate to **Administration → User Profile** (top-right avatar menu).
+3. Select the **API Keys** tab.
+4. Click **Create API Key**, give it a descriptive name (e.g. `DNS_logging`), and copy the generated key.
+
+### Where the key is stored
+
+The installer will prompt you for the key during setup and write it automatically to:
+
+```
+dns-rpz-logging/.env
+```
+
+as:
+
+```env
+TIDE_API_KEY=<your-key-here>
+```
+
+You can update the key at any time by editing that file and restarting the Logstash container:
+
+```bash
+sudo docker restart logstash
+```
 
 ## Quick Install
 
@@ -28,6 +68,14 @@ Download the install script directly from GitHub and run it in a single command:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pvogelsang67/DNS_logging/main/install.sh | sudo bash
 ```
+
+> **Note:** Because the installer prompts for your CSP API key interactively, the one-liner above must be run in an interactive terminal (not piped non-interactively). If you need a fully non-interactive install, download the script first and pass the key via an environment variable:
+>
+> ```bash
+> curl -O https://raw.githubusercontent.com/pvogelsang67/DNS_logging/main/install.sh
+> chmod +x install.sh
+> sudo TIDE_API_KEY="<your-key>" ./install.sh
+> ```
 
 Alternatively, download the script first so you can review it before running:
 
@@ -40,24 +88,25 @@ sudo ./install.sh
 ## What the Installer Does
 
 1. Detects and removes any prior installation (containers and the `/opt/DNS_logging` directory)
-2. Installs **Docker CE** and the **Docker Compose plugin** (skipped if already present)
-3. Installs **git** (skipped if already present)
+2. Installs Docker CE and the Docker Compose plugin (skipped if already present)
+3. Installs git (skipped if already present)
 4. Clones this repository to `/opt/DNS_logging`
-5. Sets `vm.max_map_count=262144` (required by Elasticsearch) and persists it in `/etc/sysctl.conf`
-6. Starts all four containers using the unified `docker-compose.yml` at the repo root
-7. Waits for containers to initialise then verifies each one is in a **running** state
-8. Prints a summary of service endpoints and management commands
+5. Prompts for your Infoblox CSP API key and writes it to `dns-rpz-logging/.env`
+6. Sets `vm.max_map_count=262144` (required by Elasticsearch) and persists it in `/etc/sysctl.conf`
+7. Starts all four containers using the unified `docker-compose.yml` at the repo root
+8. Waits for containers to initialise then verifies each one is in a running state
+9. Prints a summary of service endpoints and management commands
 
 ## Post-Install Access
 
-| Service | URL |
-|---------|-----|
-| Kibana Dashboard | `http://<server-ip>:5601` |
-| Elasticsearch API | `http://<server-ip>:9200` |
-| DNSCollector Web UI | `http://<server-ip>:8080` |
-| DNSCollector Prometheus Metrics | `http://<server-ip>:9165` |
-| Syslog / RPZ ingest | `<server-ip>:514` (UDP + TCP) |
-| DNSTap ingest | `<server-ip>:6000` (TCP) |
+| Service                        | URL                              |
+|--------------------------------|----------------------------------|
+| Kibana Dashboard               | http://\<server-ip\>:5601        |
+| Elasticsearch API              | http://\<server-ip\>:9200        |
+| DNSCollector Web UI            | http://\<server-ip\>:8080        |
+| DNSCollector Prometheus Metrics| http://\<server-ip\>:9165        |
+| Syslog / RPZ ingest            | \<server-ip\>:514 (UDP + TCP)    |
+| DNSTap ingest                  | \<server-ip\>:6000 (TCP)         |
 
 ## Manual Management
 
@@ -83,57 +132,54 @@ sudo docker ps -a
 
 ## Configuration Files
 
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Unified compose file (repo root) |
-| `dns-rpz-logging/.env` | Logstash environment variables |
-| `dns-rpz-logging/logstash/pipeline/` | Logstash pipeline configs |
-| `dns-rpz-logging/logstash/config/logstash.yml` | Logstash settings |
-| `dnscollector/config.yml` | DNSCollector settings |
-| `dnscollector/.env` | DNSCollector environment variables |
+| File                                         | Purpose                         |
+|----------------------------------------------|---------------------------------|
+| `docker-compose.yml`                         | Unified compose file (repo root)|
+| `dns-rpz-logging/.env`                       | Logstash environment variables (including `TIDE_API_KEY`) |
+| `dns-rpz-logging/logstash/pipeline/`         | Logstash pipeline configs       |
+| `dns-rpz-logging/logstash/config/logstash.yml` | Logstash settings             |
+| `dnscollector/config.yml`                    | DNSCollector settings           |
+| `dnscollector/.env`                          | DNSCollector environment variables |
 
 ## Kibana Dashboard
 
 A pre-built Kibana dashboard is included as a saved object export at:
-
-```
-elasticsearch/dnstap_dashbaord.ndjson
-```
+`elasticsearch/dnstap_dashbaord.ndjson`
 
 The dashboard provides 9 visualisation panels out of the box:
 
-| Panel | Description |
-|-------|-------------|
-| FQDN Queried | Top domains being resolved |
-| Who is Asking | Top client IPs generating DNS queries |
-| DNS Query Type | Breakdown by record type (A, PTR, SOA, IXFR, SRV, etc.) |
-| DNS Response Code | NXDOMAIN, NXRRSET, REFUSED, NOTIMP and others |
-| DNS Server | Query volume per DNS server |
-| RPZ DNS Zone | RPZ zones matching traffic |
-| RPZ Action VIA | Fully-qualified RPZ block entries triggered |
-| TIDE Confidence | Distribution of Infoblox TIDE threat confidence scores |
-| Top 5 NXDOMAIN | Most frequent non-existent domain lookups |
+| Panel               | Description                                              |
+|---------------------|----------------------------------------------------------|
+| FQDN Queried        | Top domains being resolved                               |
+| Who is Asking       | Top client IPs generating DNS queries                    |
+| DNS Query Type      | Breakdown by record type (A, PTR, SOA, IXFR, SRV, etc.) |
+| DNS Response Code   | NXDOMAIN, NXRRSET, REFUSED, NOTIMP and others            |
+| DNS Server          | Query volume per DNS server                              |
+| RPZ DNS Zone        | RPZ zones matching traffic                               |
+| RPZ Action VIA      | Fully-qualified RPZ block entries triggered              |
+| TIDE Confidence     | Distribution of Infoblox TIDE threat confidence scores   |
+| Top 5 NXDOMAIN      | Most frequent non-existent domain lookups                |
 
 ### Loading the Dashboard into Kibana
 
-1. Open Kibana in your browser — `http://<server-ip>:5601`
+1. Open Kibana in your browser: `http://<server-ip>:5601`
 2. Navigate to **Stack Management** (bottom-left gear icon) → **Kibana** → **Saved Objects**
 3. Click the **Import** button (top-right)
 4. Click **Select file** and browse to `elasticsearch/dnstap_dashbaord.ndjson` in the cloned repo at `/opt/DNS_logging/elasticsearch/dnstap_dashbaord.ndjson`
 5. Leave the import options at their defaults (check **Automatically overwrite conflicts** if reimporting)
 6. Click **Import** — Kibana will confirm all objects were loaded successfully
-7. Navigate to **Dashboards** in the left sidebar to open the **DNSTap Dashboard**
+7. Navigate to **Dashboards** in the left sidebar to open the DNSTap Dashboard
 
 > **Note:** The dashboard requires data to be flowing through the pipeline (DNSCollector → Logstash → Elasticsearch) before any visualisations will populate. Allow a few minutes after the stack starts for the first records to appear.
 
 ## Open Source Attributions
 
-| Component | Source | License |
-|-----------|--------|---------|
-| **DNS-collector** (DNSTap receiver) | [github.com/dmachard/DNS-collector](https://github.com/dmachard/DNS-collector) | MIT |
-| **Elasticsearch / Kibana / Logstash** | [elastic.co](https://www.elastic.co) | Elastic License 2.0 |
+| Component                      | Source                            | License           |
+|--------------------------------|-----------------------------------|-------------------|
+| DNS-collector (DNSTap receiver)| github.com/dmachard/DNS-collector | MIT               |
+| Elasticsearch / Kibana / Logstash | elastic.co                     | Elastic License 2.0 |
 
-The `dnscollector` container is powered by **[DNS-collector](https://github.com/dmachard/DNS-collector)** by Denis Machard — a high-speed passive DNS log collector that acts as the missing piece between DNS servers and your data stack. It receives DNSTap streams from DNS servers (Infoblox NIOS, BIND, Unbound, PowerDNS, etc.) on `tcp/6000` and forwards them into the logging pipeline.
+The `dnscollector` container is powered by [DNS-collector by Denis Machard](https://github.com/dmachard/DNS-collector) — a high-speed passive DNS log collector that acts as the missing piece between DNS servers and your data stack. It receives DNSTap streams from DNS servers (Infoblox NIOS, BIND, Unbound, PowerDNS, etc.) on tcp/6000 and forwards them into the logging pipeline.
 
 ## Uninstall / Reinstall
 
