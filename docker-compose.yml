@@ -1,4 +1,3 @@
-
 # ─────────────────────────────────────────────────────────────────────────────
 # DNS_logging — Unified Docker Compose
 # Merges: elasticsearch/docker-compose.yml
@@ -8,7 +7,6 @@
 # Place this file at the ROOT of the DNS_logging repo.
 # All volume paths are relative to the repo root.
 # ─────────────────────────────────────────────────────────────────────────────
-
 services:
 
   # ── Elasticsearch ────────────────────────────────────────────────────────────
@@ -26,6 +24,12 @@ services:
     networks:
       - esnet
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # ── Kibana ───────────────────────────────────────────────────────────────────
   kibana:
@@ -36,12 +40,19 @@ services:
       - XPACK_SECURITY_ENABLED=false
       - SERVER_PUBLICBASEURL=http://localhost:5601
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     ports:
       - "5601:5601"
     networks:
       - esnet
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
 
   # ── Logstash (DNS RPZ Logging) ────────────────────────────────────────────────
   logstash:
@@ -57,10 +68,17 @@ services:
     env_file:
       - ./dns-rpz-logging/.env
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     networks:
       - esnet
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600/_node/stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
 
   # ── DNSCollector ──────────────────────────────────────────────────────────────
   dnscollector:
@@ -77,12 +95,18 @@ services:
       - "8080:8080/tcp"
       - "9165:9165/tcp"
     depends_on:
-      - logstash
+      logstash:
+        condition: service_healthy
     networks:
       - esnet
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
 networks:
   esnet:
     driver: bridge
-

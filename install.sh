@@ -131,26 +131,30 @@ step "STEP 4 — Cloning DNS_logging repository"
 log "Cloning $GITHUB_REPO → $INSTALL_DIR ..."
 git clone "$GITHUB_REPO" "$INSTALL_DIR"
 log "Repository cloned successfully."
-
 #
-step "STEP 5 — Configuring Infoblox CSP API Key (TIDE enrichment)"
+step "STEP 5  Configuring Infoblox CSP API Key (TIDE enrichment)"
 #
 ENV_FILE="$INSTALL_DIR/dns-rpz-logging/.env"
-
 echo ""
 echo -e "  ${CYAN}RPZ log enrichment with Infoblox TIDE threat intelligence requires${NC}"
 echo -e "  ${CYAN}an API key from the Infoblox Cloud Services Portal (CSP).${NC}"
 echo -e "  ${CYAN}Get your API key at: https://csp.infoblox.com${NC}"
-echo -e "  ${CYAN}  → Administration → User Profile → API Keys → Create API Key${NC}"
+echo -e "  ${CYAN}   Administration  User Profile  API Keys  Create API Key${NC}"
 echo ""
 
 # Support non-interactive mode: allow pre-seeding via environment variable
 if [[ -n "${TIDE_API_KEY:-}" ]]; then
   log "Using TIDE_API_KEY from environment variable."
 else
+  # When piping via `curl | bash`, stdin is the curl pipe — not the terminal.
+  # Redirect read to /dev/tty so it always prompts the user directly.
+  if [[ ! -e /dev/tty ]]; then
+    error "No TTY available for interactive input. Pre-seed the key with:  TIDE_API_KEY='<your-key>' bash install.sh"
+  fi
+
   TIDE_API_KEY=""
   while [[ -z "$TIDE_API_KEY" ]]; do
-    read -r -p "  Enter your Infoblox CSP API Key: " TIDE_API_KEY
+    read -r -p "  Enter your Infoblox CSP API Key: " TIDE_API_KEY </dev/tty
     if [[ -z "$TIDE_API_KEY" ]]; then
       warn "API key cannot be empty. Please enter a valid key."
     fi
@@ -164,6 +168,7 @@ else
   echo "TIDE_API_KEY=${TIDE_API_KEY}" > "$ENV_FILE"
   log "Created $ENV_FILE with TIDE API key."
 fi
+
 
 #
 step "STEP 6 — Tuning system settings for Elasticsearch"
@@ -182,9 +187,8 @@ if [[ "$CURRENT_MAP" -lt 262144 ]]; then
 else
   log "vm.max_map_count already sufficient ($CURRENT_MAP)."
 fi
-
 #
-step "STEP 7 — Starting all Docker containers"
+step "STEP 7  Starting all Docker containers"
 #
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 if [[ ! -f "$COMPOSE_FILE" ]]; then
@@ -192,12 +196,54 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
 Please ensure the file exists in the repo root before running this script."
 fi
 
-log "Running: docker compose up -d  (from $COMPOSE_FILE)"
-docker compose -f "$COMPOSE_FILE" up -d
-log "Waiting ${STARTUP_WAIT}s for containers to initialise..."
-sleep "$STARTUP_WAIT"
+# ── Stage 1: bring up Elasticsearch and Kibana ──────────────────────────────
+log "Starting Elasticsearch and Kibana..."
+docker compose -f "$COMPOSE_FILE" up -d es01 kibana
 
-#
+# Wait for Elasticsearch
+log "Waiting for Elasticsearch to be ready (up to 5 min)..."
+ES_READY=false
+for i in $(seq 1 60); do
+  ES_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+    http://localhost:9200/_cluster/health 2>/dev/null || echo "000")
+  if [[ "$ES_STATUS" == "200" ]]; then
+    log "Elasticsearch is ready (HTTP 200) after $((i * 5))s."
+    ES_READY=true
+    break
+  fi
+  echo -n "."
+  sleep 5
+done
+echo ""
+if [[ "$ES_READY" != "true" ]]; then
+  error "Elasticsearch did not become ready within 5 minutes. Check logs: docker logs es01"
+fi
+
+# Wait for Kibana
+log "Waiting for Kibana to be ready (up to 5 min)..."
+KIBANA_READY=false
+for i in $(seq 1 60); do
+  KIBANA_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+    http://localhost:5601/api/status 2>/dev/null || echo "000")
+  if [[ "$KIBANA_STATUS" == "200" ]]; then
+    log "Kibana is ready (HTTP 200) after $((i * 5))s."
+    KIBANA_READY=true
+    break
+  fi
+  echo -n "."
+  sleep 5
+done
+echo ""
+if [[ "$KIBANA_READY" != "true" ]]; then
+  error "Kibana did not become ready within 5 minutes. Check logs: docker logs kibana"
+fi
+
+# ── Stage 2: bring up Logstash and DNSCollector ──────────────────────────────
+log "Starting Logstash and DNSCollector..."
+docker compose -f "$COMPOSE_FILE" up -d logstash dnscollector
+log "All four containers are up."
+
+
 step "STEP 8 — Verifying container status"
 #
 FAILED=()
