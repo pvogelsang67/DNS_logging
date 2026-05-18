@@ -275,6 +275,44 @@ if [[ "$ES_STATUS" == "200" ]]; then
 else
   warn "Elasticsearch health endpoint returned HTTP $ES_STATUS — it may still be warming up."
 fi
+#
+step "STEP 9  Importing Kibana dashboard"
+#
+DASHBOARD_FILE="$INSTALL_DIR/elasticsearch/dnstap_dashboard.ndjson"
+
+if [[ ! -f "$DASHBOARD_FILE" ]]; then
+  warn "Dashboard file not found at $DASHBOARD_FILE — skipping automatic import."
+  warn "Import it manually via: Stack Management → Kibana → Saved Objects → Import"
+else
+  log "Importing Kibana saved objects from $DASHBOARD_FILE ..."
+
+  # Retry loop — Kibana's saved objects API can briefly return 503 even after
+  # /api/status reports 200 while internal plugins finish initialising.
+  IMPORT_SUCCESS=false
+  for attempt in 1 2 3; do
+    IMPORT_RESPONSE=$(curl -s -X POST \
+      "http://localhost:5601/api/saved_objects/_import?overwrite=true" \
+      -H "kbn-xsrf: true" \
+      -F "file=@${DASHBOARD_FILE}" 2>/dev/null || echo '{"success":false}')
+
+    if echo "$IMPORT_RESPONSE" | grep -q '"success":true'; then
+      log "Kibana dashboard imported successfully."
+      IMPORT_SUCCESS=true
+      break
+    else
+      warn "Import attempt $attempt failed — waiting 10s before retry..."
+      sleep 10
+    fi
+  done
+
+  if [[ "$IMPORT_SUCCESS" != "true" ]]; then
+    warn "Kibana dashboard could not be imported automatically."
+    warn "Import it manually:"
+    warn "  1. Open http://<server-ip>:5601"
+    warn "  2. Stack Management → Kibana → Saved Objects → Import"
+    warn "  3. Select file: $DASHBOARD_FILE"
+  fi
+fi
 
 # Summary
 HOST_IP=$(hostname -I | awk '{print $1}')
