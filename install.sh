@@ -198,7 +198,7 @@ fi
 
 # ── Stage 1: bring up Elasticsearch and Kibana ──────────────────────────────
 log "Starting Elasticsearch and Kibana..."
-docker compose -f "$COMPOSE_FILE" up -d es01 kibana
+docker compose -f "$COMPOSE_FILE" up -d elasticsearch kibana
 
 # Wait for Elasticsearch
 log "Waiting for Elasticsearch to be ready (up to 5 min)..."
